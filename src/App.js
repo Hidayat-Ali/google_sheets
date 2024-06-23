@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import "./App.css";
+import { saveData, getAllData } from "./indexDb";
 
 const ROW_HEIGHT = 35;
 const COLUMN_WIDTH = 100;
@@ -25,8 +26,19 @@ function App() {
   const tableContainerRef = useRef(null);
 
   useEffect(() => {
-    localStorage.setItem("tableData", JSON.stringify(data));
-  }, [data]);
+    const fetchData = async () => {
+      const storedData = await getAllData("tableDB", "cells");
+      if (storedData.length > 0) {
+        const newData = createInitialData(initialRows, initialColumns);
+        storedData.forEach((cell) => {
+          newData[cell.rowIndex][cell.columnIndex] = cell.value;
+        });
+        setData(newData);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const handleScroll = useCallback(() => {
     const { scrollTop, scrollLeft } = tableContainerRef.current;
@@ -37,20 +49,42 @@ function App() {
   }, []);
 
   const handleCellChange = (event, rowIndex, columnIndex) => {
-    const newData = data.map((row, rIdx) =>
-      row.map((cell, cIdx) => {
-        if (rIdx === rowIndex && cIdx === columnIndex) {
-          return event.target.value;
-        }
-        return cell;
-      })
-    );
+    const { value } = event.target;
+    const newData = [...data];
+    newData[rowIndex][columnIndex] = value;
     setData(newData);
+
+    saveData("tableDB", "cells", { rowIndex, columnIndex, value });
   };
 
   const visibleData = data
     .slice(startRow, startRow + VISIBLE_ROWS)
-    .map((row) => row.slice(startColumn, startColumn + VISIBLE_COLUMNS));
+    .map((row, rowIndex) => (
+      <tr key={startRow + rowIndex} className="rows">
+        {row
+          .slice(startColumn, startColumn + VISIBLE_COLUMNS)
+          .map((cell, columnIndex) => (
+            <td key={startColumn + columnIndex}>
+              <input
+                type="text"
+                defaultValue={cell}
+                onBlur={(event) =>
+                  handleCellChange(
+                    event,
+                    startRow + rowIndex,
+                    startColumn + columnIndex
+                  )
+                }
+                style={{
+                  width: COLUMN_WIDTH,
+                  height: ROW_HEIGHT,
+                  boxSizing: "border-box",
+                }}
+              />
+            </td>
+          ))}
+      </tr>
+    ));
 
   return (
     <div className="App">
@@ -81,32 +115,7 @@ function App() {
               }px)`,
             }}
           >
-            <tbody>
-              {visibleData.map((row, rowIndex) => (
-                <tr key={startRow + rowIndex} className="rows">
-                  {row.map((cell, columnIndex) => (
-                    <td key={startColumn + columnIndex}>
-                      <input
-                        type="text"
-                        value={cell}
-                        onChange={(event) =>
-                          handleCellChange(
-                            event,
-                            startRow + rowIndex,
-                            startColumn + columnIndex
-                          )
-                        }
-                        style={{
-                          width: COLUMN_WIDTH,
-                          height: ROW_HEIGHT,
-                          boxSizing: "border-box",
-                        }}
-                      />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
+            <tbody>{visibleData}</tbody>
           </table>
         </div>
       </div>
